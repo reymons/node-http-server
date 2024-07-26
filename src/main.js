@@ -12,7 +12,7 @@ export default async function server(conf) {
     const distDir     = conf.distDir;
     const pagesDir    = conf.pagesDir;
     const apiPrfx     = conf.apiPrfx;
-    const page404Name = `/${conf.page404Name}`;
+    const page404Path = conf.page404Path;
     const staticDir   = conf.staticDir;
 
     let server;
@@ -76,8 +76,8 @@ export default async function server(conf) {
         let handler = pages[url.pathname];
     
         if (!handler) {
-            if (pages[page404Name]) {
-                handler = pages[page404Name];
+            if (pages[page404Path]) {
+                handler = pages[page404Path];
             } else {
                 resClose(res, STATUS.NOT_FOUND);
                 return;
