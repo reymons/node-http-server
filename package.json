@@ -1,6 +1,6 @@
 {
     "type": "module",
     "scripts": {
-        "start": "./start.sh"
+        "start": "node --loader ./loader.js examples/simple-server/main.js"
     }
 }

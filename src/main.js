@@ -2,92 +2,96 @@ import * as http from "http";
 import * as path from "path";
 import * as fs   from "fs";
 import { parse } from "url";
-import { pages, preparePages } from "./pages.js";
 import { configureEnv } from "./env.js";
+import { STATUS, MIME } from "./const.js";
+import { pages, preparePages } from "./pages.js";
 
-configureEnv();
-await preparePages();
+export default async function server(conf) {
+    const port        = conf.port;
+    const host        = conf.host;
+    const distDir     = conf.distDir;
+    const pagesDir    = conf.pagesDir;
+    const apiPrfx     = conf.apiPrfx;
+    const page404Name = `/${conf.page404Name}`;
+    const staticDir   = conf.staticDir;
 
-const port      = 6969;
-const host      = "127.0.0.1";
-const distDir   = "/dist";
-const apiPrfx   = "/api";
-const staticDir = `${distDir}/_static`;
-const name404   = "/404"
-
-const STATUS = {
-    OK:         200,
-    BAD_REQ:    400,
-    NOT_FOUND:  404,
-    INTERNAL:   500,
-};
-
-const mime  = {
-    "_html": "text/html",
-    ".js":   "text/javascript",
-    ".css":  "text/css",
-};
-
-const server = http.createServer();
-
-server.on("request", (req, res) => {
-    if (req.url === undefined) {
-        resClose(res, STATUS.BAD_REQ);
-        return;
+    let server;
+    
+    configureEnv();
+    await preparePages(pagesDir);
+    
+    function createServer() {
+        server = http.createServer();
+        
+        server.on("request", (req, res) => {
+            if (req.url === undefined) {
+                resClose(res, STATUS.BAD_REQ);
+                return;
+            }
+        
+            const url = parse(req.url, true);
+            const ext = path.extname(url.pathname);
+        
+            if (ext !== "") {
+                handleStatic(res, url, ext);
+            } else if (url.pathname.startsWith(apiPrfx)) {
+                handleApi(req, res, url);
+            } else {
+                handlePage(req, res, url);
+            }
+        });
     }
 
-    const url = parse(req.url, true);
-    const ext = path.extname(url.pathname);
-
-    if (ext !== "") {
-        handleStatic(res, url, ext);
-    } else if (url.pathname.startsWith(apiPrfx)) {
-        handleApi(req, res, url);
-    } else {
-        handlePage(req, res, url);
-    }
-});
-
-server.listen(port, () => console.log(`Running on ${host}:${port}`));
-
-function resClose(res, status, msg) {
-    res.statusCode = status;
-    res.end(msg);
-}
-
-function handleStatic(res, url, ext) {
-    const m = mime[ext];
-
-    if (m === undefined) {
-        resClose(res, STATUS.NOT_FOUND);
-        return;
+    function listen(callback) {
+        server.listen(port, callback ?? (() => {
+            console.log(`Running on ${host}:${port}`);
+        }));
     }
 
-    const filePath = path.join(staticDir, url.pathname);
-    const rs = fs.createReadStream(filePath);
-
-    res.writeHead(STATUS.OK, {
-        "Content-Type": m
-    });
- 
-    rs.pipe(res);
-    rs.once("error", () => res.close());
-} 
- 
-function handlePage(req, res, url) {
-    let handler = pages[url.pathname];
-
-    if (!handler) {
-        if (pages[name404]) {
-            handler = pages[name404];
-        } else {
+    function resClose(res, status, msg) {
+        res.statusCode = status;
+        res.end(msg);
+    }
+    
+    function handleStatic(res, url, ext) {
+        const mime = MIME[ext];
+    
+        if (mime === undefined) {
             resClose(res, STATUS.NOT_FOUND);
             return;
         }
+    
+        const filePath = path.join(staticDir, url.pathname);
+        const rs = fs.createReadStream(filePath);
+    
+        res.writeHead(STATUS.OK, {
+            "Content-Type": mime
+        });
+     
+        rs.pipe(res);
+        rs.once("error", () => res.close());
+    } 
+     
+    function handlePage(req, res, url) {
+        let handler = pages[url.pathname];
+    
+        if (!handler) {
+            if (pages[page404Name]) {
+                handler = pages[page404Name];
+            } else {
+                resClose(res, STATUS.NOT_FOUND);
+                return;
+            }
+        }
+    
+        handler(req, res, url);
     }
+      
+    function handleApi() {}
 
-    handler(req, res, url);
+    return {
+        createServer,
+        listen,
+    };
 }
-  
-function handleApi() {}
 

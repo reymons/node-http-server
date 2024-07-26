@@ -3,18 +3,20 @@ import { join, parse, normalize } from "path";
 
 const allowedExt = [".js"];
 const rootName = "index";
-const pagesDir = "pages";
 const pageImports = [];
+
+let pagesDir;
 
 export const pages = {};
 
-export async function preparePages() {
+export async function preparePages(_pagesDir) {
+    pagesDir = _pagesDir;
     _preparePages();
     await Promise.all(pageImports);
     Object.freeze(pages);
 }
 
-function _preparePages(dir = $dir.join(pagesDir)) {
+function _preparePages(dir = pagesDir) {
     const items = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const item of items) {
@@ -27,7 +29,7 @@ function _preparePages(dir = $dir.join(pagesDir)) {
 }
 
 function importPage(fileName) {
-    const fileInfo = parse(fileName.replace($dir.join(pagesDir), ""));
+    const fileInfo = parse(fileName.replace(pagesDir, ""));
     
     if (!allowedExt.includes(fileInfo.ext)) {
         return Promise.resolve();
