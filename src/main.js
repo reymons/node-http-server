@@ -1,97 +1,84 @@
-import * as http from "http";
-import * as path from "path";
-import * as fs   from "fs";
-import { parse } from "url";
+import http from "http";
 import { configureEnv } from "./env.js";
-import { STATUS, MIME } from "./const.js";
+import { STATUS } from "./const.js";
 import { pages, preparePages } from "./pages.js";
+import { Connection } from "./conn.js";
 
 export default async function server(conf) {
     const port        = conf.port;
     const host        = conf.host;
-    const distDir     = conf.distDir;
+    const staticDir   = conf.staticDir;
     const pagesDir    = conf.pagesDir;
     const apiPrfx     = conf.apiPrfx;
+    const staticPrfx  = conf.staticPrfx;
     const page404Path = conf.page404Path;
-    const staticDir   = conf.staticDir;
 
     let server;
     
     configureEnv();
     await preparePages(pagesDir);
     
-    function createServer() {
+    function run(callback) {
         server = http.createServer();
         
         server.on("request", (req, res) => {
-            if (req.url === undefined) {
-                resClose(res, STATUS.BAD_REQ);
-                return;
-            }
+            detectUrlExceptions(req);
+
+            const conn = new Connection(req, res, staticDir);
         
-            const url = parse(req.url, true);
-            const ext = path.extname(url.pathname);
-        
-            if (ext !== "") {
-                handleStatic(res, url, ext);
-            } else if (url.pathname.startsWith(apiPrfx)) {
-                handleApi(req, res, url);
+            if (conn.path.startsWith(staticPrfx)) {
+                handleStatic(conn);
+            } else if (conn.path.startsWith(apiPrfx)) {
+                handleAPI(conn);
             } else {
-                handlePage(req, res, url);
+                handlePage(conn);
             }
         });
-    }
 
-    function listen(callback) {
         server.listen(port, callback ?? (() => {
             console.log(`Running on ${host}:${port}`);
         }));
     }
+    
+    function detectUrlExceptions(req) {
+        req.url = req.url ?? "";
 
-    function resClose(res, status, msg) {
-        res.statusCode = status;
-        res.end(msg);
-    }
-    
-    function handleStatic(res, url, ext) {
-        const mime = MIME[ext];
-    
-        if (mime === undefined) {
-            resClose(res, STATUS.NOT_FOUND);
-            return;
+        if (req.url == "/favicon.ico") {
+            req.url = `${staticPrfx}/favicon.ico`;
         }
-    
-        const filePath = path.join(staticDir, url.pathname);
-        const rs = fs.createReadStream(filePath);
-    
-        res.writeHead(STATUS.OK, {
-            "Content-Type": mime
-        });
+    }
+
+    function handleStatic(conn) {
+        conn.send(conn.path.replace(staticPrfx, ""));
+    }
      
-        rs.pipe(res);
-        rs.once("error", () => res.close());
-    } 
-     
-    function handlePage(req, res, url) {
-        let handler = pages[url.pathname];
-    
-        if (!handler) {
+    function handlePage(conn) {
+        let handler = pages[conn.path];
+        
+        if (handler === undefined) {
             if (pages[page404Path]) {
                 handler = pages[page404Path];
             } else {
-                resClose(res, STATUS.NOT_FOUND);
+                conn.close(STATUS.NOT_FOUND);
                 return;
             }
         }
     
-        handler(req, res, url);
+        handler(conn);
     }
-      
-    function handleApi() {}
+    
+    function handleAPI() {
+        const handler = pages[conn.path];
+
+        if (handler === undefined) {
+            conn.close(STATUS.NOT_FOUND);
+        } else {
+            handler(conn);
+        }
+    }
 
     return {
-        createServer,
-        listen,
+        run,
     };
 }
 

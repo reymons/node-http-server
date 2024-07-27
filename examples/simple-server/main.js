@@ -8,9 +8,10 @@ const server = await lib({
     host:         "127.0.0.1",
     port:         6969,
     page404Path:  "/my404",
+    staticPrfx:   "/_static",
+    staticDir:    join(dir, "static"),
     pagesDir:     join(dir, "pages"),
 });
 
-server.createServer();
-server.listen();
+server.run();
 

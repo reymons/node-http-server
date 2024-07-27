@@ -1,4 +1,5 @@
 export const STATUS = {
+    NONE:        -1,
     OK:         200,
     BAD_REQ:    400,
     NOT_FOUND:  404,
@@ -6,7 +7,7 @@ export const STATUS = {
 };
 
 export const MIME = {
-    "_html": "text/html",
+    ".html": "text/html",
     ".js":   "text/javascript",
     ".css":  "text/css",
 };
