@@ -2,5 +2,8 @@
     "type": "module",
     "scripts": {
         "start": "node --loader ./loader.js examples/simple-server/main.js"
+    },
+    "dependencies": {
+        "pg": "^8.12.0"
     }
 }

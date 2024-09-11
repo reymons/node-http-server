@@ -2,21 +2,30 @@ import http from "http";
 import { configureEnv } from "./env.js";
 import { STATUS } from "./const.js";
 import { pages, preparePages } from "./pages.js";
+import { api, prepareAPI } from "./api.js";
 import { Connection } from "./conn.js";
+import { DB } from "./db.js";
 
 export default async function server(conf) {
     const port        = conf.port;
     const host        = conf.host;
     const staticDir   = conf.staticDir;
     const pagesDir    = conf.pagesDir;
-    const apiPrfx     = conf.apiPrfx;
+    const domainsDir  = conf.domainsDir;
+    const apiPrfx     = conf.apiPrfx || "/api";
     const staticPrfx  = conf.staticPrfx;
     const page404Path = conf.page404Path;
+    const db          = new DB();
 
     let server;
     
     configureEnv();
-    await preparePages(pagesDir);
+
+    await Promise.all([
+        preparePages(pagesDir),
+        prepareAPI(domainsDir, apiPrfx),
+        db.connect()
+    ]);
     
     function run(callback) {
         server = http.createServer();
@@ -67,14 +76,30 @@ export default async function server(conf) {
         handler(conn);
     }
     
-    function handleAPI() {
-        const handler = pages[conn.path];
+    function handleAPI(conn) {
+        for (const item of api) {
+            if (item.handler[conn.method]) {
+                const matches = conn.path.match(item.path);
+                
+                if (matches !== null) {
+                    const params = {};
 
-        if (handler === undefined) {
-            conn.close(STATUS.NOT_FOUND);
-        } else {
-            handler(conn);
+                    for (let i = 1; i < matches.length; i++) {
+                        params[item.params[i - 1]] = matches[i];
+                    }
+
+                    item.handler[conn.method]({
+                        conn,
+                        params,
+                        db,
+                    });
+                    
+                    return;
+                }
+            }
         }
+
+        conn.close(STATUS.NOT_FOUND);
     }
 
     return {

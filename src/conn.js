@@ -7,6 +7,7 @@ export class Connection {
     #url;
     #closed;
     #staticDir;
+    #payload;
 
     constructor(req, res, staticDir) {
         const splitted = req.url.split("?");
@@ -20,6 +21,7 @@ export class Connection {
         this.req         = req;
         this.res         = res;
         this.#staticDir  = staticDir;
+        this.#payload    = null;
 
         // TODO: handle errors
         req.once("error", () => {});
@@ -30,7 +32,6 @@ export class Connection {
         if (this.#url.query == null) {
             this.#url.query = new URLSearchParams(this.#url.queryStr);
         }
-
         return this.#url.query;
     }
 
@@ -38,13 +39,17 @@ export class Connection {
         return this.#url.path;
     }
 
-    close(status, reason) {
+    get method() {
+        return this.req.method;
+    }
+
+    close(status, chunk) {
         if (!this.#closed) {
             if (status !== STATUS.NONE) {
                 this.res.statusCode = status;
             }
 
-            this.res.end(reason);
+            this.res.end(chunk);
             this.#closed = true;
         }
     }
@@ -78,6 +83,52 @@ export class Connection {
             rs.once("end", () => this.close(STATUS.NONE));
             rs.pipe(this.res);
         });
+    }
+
+    async #readPayload() {
+        if (this.#payload !== null) {
+            return Promise.resolve(this.#payload);
+        }
+
+        return new Promise((resolve, reject) => {
+            const chunks = [];
+
+            this.req.on("data", chunk => chunks.push(chunk));
+            
+            this.req.once("end", () => {
+                this.#payload = Buffer.concat(chunks);
+                resolve(this.#payload);
+            });
+
+            this.req.once("error", reject);
+        });
+    }
+
+    async #readJSON() {
+        return JSON.parse(await this.#readPayload());
+    }
+
+    #sendJSON(obj) {
+        try {
+            const str = JSON.stringify(obj);
+
+            this.res.writeHead(STATUS.OK, {
+                "Content-Type":     MIME[".json"],
+                "Content-Length":   str.length,
+            });
+
+            this.close(STATUS.NONE, str);
+        } catch {
+            this.close(STATUS.INTERNAL);
+        }
+    }
+
+    json(obj) {
+        if (obj === undefined) {
+            return this.#readJSON();       
+        } else {
+            return this.#sendJSON(obj);
+        }
     }
 }
 

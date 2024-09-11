@@ -5,18 +5,18 @@ const allowedExt = [".js"];
 const rootName = "index";
 const pageImports = [];
 
-let pagesDir;
-
 export const pages = {};
 
-export async function preparePages(_pagesDir) {
-    pagesDir = _pagesDir;
-    _preparePages();
+let initialPagesDir;
+
+export async function preparePages(pagesDir) {
+    initialPagesDir = pagesDir;
+    _preparePages(pagesDir);
     await Promise.all(pageImports);
     Object.freeze(pages);
 }
 
-function _preparePages(dir = pagesDir) {
+function _preparePages(dir) {
     const items = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const item of items) {
@@ -29,7 +29,7 @@ function _preparePages(dir = pagesDir) {
 }
 
 function importPage(fileName) {
-    const fileInfo = parse(fileName.replace(pagesDir, ""));
+    const fileInfo = parse(fileName.replace(initialPagesDir, ""));
     
     if (!allowedExt.includes(fileInfo.ext)) {
         return Promise.resolve();

@@ -2,9 +2,25 @@
 <html>
     <head>
         <title>Home</title>
-        <script src="/_static/home/index.js/" defer type="text/javascript"></script>
+        <script src="/_static/home/index.js" defer type="text/javascript"></script>
     </head>
     <body>
         <h1>Home page</h1>
+        <form>
+            <input name="name"><br />
+            <button>Submit</button>
+        </form>
+        <script>
+            const form = document.forms[0];
+            
+            form.onsubmit = e => {
+                e.preventDefault();
+                const data = new FormData(form);
+                fetch(`/api/user/echo/${data.get("name")}`)
+                    .then(res => res.json())
+                    .then(data => alert(`Hello, ${data.value}`))
+                    .catch(console.error);
+            };
+        </script>
     </body>
 </html>

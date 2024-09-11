@@ -11,6 +11,7 @@ const server = await lib({
     staticPrfx:   "/_static",
     staticDir:    join(dir, "static"),
     pagesDir:     join(dir, "pages"),
+    domainsDir:   join(dir, "domains"),
 });
 
 server.run();
